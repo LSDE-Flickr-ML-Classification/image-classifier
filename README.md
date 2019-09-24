@@ -1,1 +1,1 @@
-# image-classifier
+# Classifier for Flickr images using a pre-trained Artificial Neural Network Model
