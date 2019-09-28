@@ -55,7 +55,7 @@ def preprocess_image(image_filename):
     :param image_filename: Original picture without any other preprocessing
     :return: A tensor representing the input layer of the Neural Network
     """
-    print("Pre-processing image")
+    # print("Pre-processing image")
 
     preprocessing_start_time = time.time()
 
@@ -73,7 +73,7 @@ def preprocess_image(image_filename):
     img_transformed = transform(img)
     batched_tensor = torch.unsqueeze(img_transformed, 0)
 
-    print("Preprocessing took: %.4f s" % (time.time() - preprocessing_start_time))
+    # print("Preprocessing took: %.4f s" % (time.time() - preprocessing_start_time))
 
     return batched_tensor
 
@@ -112,21 +112,21 @@ def execute_classification(classes, batched_tensor, nr_output_classes):
     :param classes: The ImageNet classes that will be used to label the image
     :param batched_tensor: Image represented as a tensor
     :param nr_output_classes: The number of matched classes that should be returned
-    :return: A dictionary containing the class as a key and the match percentage as a value
+    :return: A dictionary containing the classifier as a key and the match percentage as a value
     """
-    print("Executing image classification")
+    # print("Executing image classification")
     start_time_classify = time.time()
 
-    resnet = models.resnet101(pretrained=True)
-    resnet.eval()
-    out = resnet(batched_tensor)
+    classifier = models.inception_v3(pretrained=True)
+    classifier.eval()
+    out = classifier(batched_tensor)
 
     percentage = torch.nn.functional.softmax(out, dim=1)[0] * 100
 
     _, indices = torch.sort(out, descending=True)
     matched_classes = {classes[idx]: percentage[idx].item() for idx in islice(indices[0], nr_output_classes)}
 
-    print("Classification took: %.4f s" % (time.time() - start_time_classify))
+    # print("Classification took: %.4f s" % (time.time() - start_time_classify))
 
     return matched_classes
 
