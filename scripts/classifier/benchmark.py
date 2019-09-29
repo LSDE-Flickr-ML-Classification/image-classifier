@@ -11,6 +11,7 @@ import argparse
 import os
 import time
 import json
+import subprocess
 
 CLASSES_LOCATION = './imagenet_classes.json'
 
@@ -103,48 +104,62 @@ def benchmark():
     location = args.dataset
 
     nr_photos = 0
+    photos_per_second = 0
     total_preprocessing_time = 0
     total_classification_time = 0
+    time_elapsed = 0
+    start_time = time.time()
+
     total_width = 0
     total_height = 0
+
+
     img_classes = get_classes(CLASSES_LOCATION)
 
-    for file in os.listdir(location):
-        filename = os.fsdecode(file)
-        if filename.endswith(".jpg") or filename.endswith(".jpeg"):
-            file_path = os.path.join(location, filename)
-            nr_photos = nr_photos + 1
+    for root, dirs, files in os.walk(location):
+        path = root.split(os.sep)
+        for file in files:
+            full_file_path = os.path.join(root, file)
+            if full_file_path.endswith(".jpg") or full_file_path.endswith(".jpeg"):
 
-            im = Image.open(file_path)
-            width, height = im.size
+                nr_photos = nr_photos + 1
 
-            total_width = total_width + width
-            total_height = total_height + height
+                time_elapsed = time.time() - start_time
+                photos_per_second = nr_photos / time_elapsed
 
-            preprocessing_start = time.time()
-            img_tensor = preprocess_image(file_path)
-            img_tensor = img_tensor.to(device)
-            preprocessing_end = time.time()
+                im = Image.open(full_file_path)
+                width, height = im.size
 
-            if img_tensor is None:
-                print("Skipping image %s" % filename)
-                continue
+                total_width = total_width + width
+                total_height = total_height + height
 
-            total_preprocessing_time = total_preprocessing_time + (preprocessing_end - preprocessing_start)
+                preprocessing_start = time.time()
+                img_tensor = preprocess_image(full_file_path)
+                if img_tensor is None:
+                    print("Skipping image %s" % full_file_path)
+                    continue
+                img_tensor = img_tensor.to(device)
+                preprocessing_end = time.time()
 
-            classification_start = time.time()
-            matched_labels = execute_classification(model, img_classes, img_tensor, CLASSIFICATION_CLASSES)
-            classification_end = time.time()
+                total_preprocessing_time = total_preprocessing_time + (preprocessing_end - preprocessing_start)
 
-            total_classification_time = total_classification_time + (classification_end - classification_start)
+                classification_start = time.time()
+                matched_labels = execute_classification(model, img_classes, img_tensor, CLASSIFICATION_CLASSES)
+                classification_end = time.time()
 
-            print(matched_labels, filename)
+                total_classification_time = total_classification_time + (classification_end - classification_start)
 
-            print('{:<25s}{:5>d}'.format("Nr Photos:", nr_photos))
-            print('{:<25s}{:5>.4f}'.format("Avg preprocessing time:", (total_preprocessing_time / nr_photos)))
-            print('{:<25s}{:5>.4f}'.format("Avg classification time:", (total_classification_time / nr_photos)))
-            print('{:<25s}{:5>.4f}'.format("Avg Width:", (total_width / nr_photos)))
-            print('{:<25s}{:5>.4f}'.format("Avg Height:", (total_height / nr_photos)))
+                # print(matched_labels, full_file_path)
+
+                tmp = subprocess.call('cls', shell=True)
+
+                print('{:<25s}{:5>.4f}'.format("Time elapsed", time_elapsed))
+                print('{:<25s}{:5>d}'.format("Nr Photos:", nr_photos))
+                print('{:<25s}{:5>.4f}'.format("Photos per second", photos_per_second))
+                print('{:<25s}{:5>.4f}'.format("Avg preprocessing time:", (total_preprocessing_time / nr_photos)))
+                print('{:<25s}{:5>.4f}'.format("Avg classification time:", (total_classification_time / nr_photos)))
+                print('{:<25s}{:5>.4f}'.format("Avg Width:", (total_width / nr_photos)))
+                print('{:<25s}{:5>.4f}'.format("Avg Height:", (total_height / nr_photos)))
 
 
 if __name__ == '__main__':
