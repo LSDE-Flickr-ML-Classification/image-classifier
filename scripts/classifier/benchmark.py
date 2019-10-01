@@ -101,65 +101,55 @@ def benchmark():
     model = model.to(device)
     model.eval()
 
-    location = args.dataset
-
-    nr_photos = 0
-    photos_per_second = 0
-    total_preprocessing_time = 0
-    total_classification_time = 0
-    time_elapsed = 0
-    start_time = time.time()
-
-    total_width = 0
-    total_height = 0
-
-
     img_classes = get_classes(CLASSES_LOCATION)
 
-    for root, dirs, files in os.walk(location):
+    dash = '-' * 115
+
+    print(dash)
+    print("{:<25s} | {:>4s} | {:>8.4s} | {:>15s} | {:>15s} | {:>15s} | {:>15s}".format("Folder", "Cnt.", "Dur.",
+                                                                                       "Img/sec", "Dur/Photo",
+                                                                                       "Avg img/sec", "Avg dur/photo"))
+    print(dash)
+
+    total_image_count = 0
+    time_start_all = time.time()
+
+    for root, dirs, files in os.walk(args.dataset):
         path = root.split(os.sep)
+        nr_photos = 0
+        time_started = time.time()
+
         for file in files:
             full_file_path = os.path.join(root, file)
             if full_file_path.endswith(".jpg") or full_file_path.endswith(".jpeg"):
-
-                nr_photos = nr_photos + 1
-
-                time_elapsed = time.time() - start_time
-                photos_per_second = nr_photos / time_elapsed
-
-                im = Image.open(full_file_path)
-                width, height = im.size
-
-                total_width = total_width + width
-                total_height = total_height + height
-
-                preprocessing_start = time.time()
+                if nr_photos >= 50:
+                    break
                 img_tensor = preprocess_image(full_file_path)
                 if img_tensor is None:
-                    print("Skipping image %s" % full_file_path)
                     continue
                 img_tensor = img_tensor.to(device)
-                preprocessing_end = time.time()
+                execute_classification(model, img_classes, img_tensor, CLASSIFICATION_CLASSES)
+                nr_photos = nr_photos + 1
 
-                total_preprocessing_time = total_preprocessing_time + (preprocessing_end - preprocessing_start)
+        time_ended = time.time()
+        total_image_count = total_image_count + nr_photos
 
-                classification_start = time.time()
-                matched_labels = execute_classification(model, img_classes, img_tensor, CLASSIFICATION_CLASSES)
-                classification_end = time.time()
+        time_duration = time_ended - time_started
+        time_duration_all = time_ended - time_start_all
 
-                total_classification_time = total_classification_time + (classification_end - classification_start)
+        photos_per_second = 0 if time_duration == 0 else nr_photos / time_duration
+        photos_per_second_all = 0 if time_duration_all == 0 else total_image_count / time_duration_all
 
-                # print(matched_labels, full_file_path)
+        duration_per_photo = 0 if nr_photos == 0 else time_duration / nr_photos
+        duration_per_photo_all = 0 if total_image_count == 0 else time_duration_all / total_image_count
 
-                tmp = subprocess.call('cls', shell=True)
-
-                print('{:<25s}{:5>.4f}'.format("Time elapsed", time_elapsed))
-                print('{:<25s}{:5>d}'.format("Nr Photos:", nr_photos))
-                print('{:<25s}{:5>.4f}'.format("Photos per second", photos_per_second))
-                print('{:<25s}{:5>.4f}'.format("Avg preprocessing time:", (total_preprocessing_time / nr_photos)))
-                print('{:<25s}{:5>.4f}'.format("Avg classification time:", (total_classification_time / nr_photos)))
-                print('{:<25s}{:5>.4f}'.format("Avg Width:", (total_width / nr_photos)))
-                print('{:<25s}{:5>.4f}'.format("Avg Height:", (total_height / nr_photos)))
+        print("{:<25s} | {:>4d} | {:>8.4f} | {:>15.4f} | {:>15.4f} | {:>15.4f} | {:>15.4f}".format(path[-1] + "/",
+                                                                                                   nr_photos,
+                                                                                                   time_duration,
+                                                                                                   photos_per_second,
+                                                                                                   duration_per_photo,
+                                                                                                   photos_per_second_all,
+                                                                                                   duration_per_photo_all))
 
 
 if __name__ == '__main__':
