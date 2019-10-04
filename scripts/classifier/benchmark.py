@@ -122,8 +122,6 @@ def benchmark():
         for file in files:
             full_file_path = os.path.join(root, file)
             if full_file_path.endswith(".jpg") or full_file_path.endswith(".jpeg"):
-                if nr_photos >= 50:
-                    break
                 img_tensor = preprocess_image(full_file_path)
                 if img_tensor is None:
                     continue
