@@ -41,6 +41,7 @@ class ImageDataset(Dataset):
         image = Image.open(self.images_as_bytes[item])
         if self.transform is not None:
             image = self.transform(image)
+
         return image
 
 
@@ -141,7 +142,7 @@ def download_images_as_bytes(image_urls):
 
 
 def obtain_image_urls_list():
-    return list_image_urls
+    return None
 
 
 # COMMAND ----------
