@@ -3,6 +3,7 @@ import io
 
 from torchvision import transforms
 from PIL import Image
+from multiprocessing.pool import ThreadPool
 
 
 class ImageDownloader:
@@ -20,25 +21,34 @@ class ImageDownloader:
         return transformed_image
 
     @staticmethod
-    def download_images(links, threads):
-        print("Downloading %d possible images..." % len(links))
+    def download_and_preprocess_image(flickr_data_row):
+        link = flickr_data_row.photo_video_download_url
+        response = requests.get(link)
+
+        if response.status_code != 200:
+            return None
+
+        image_bytes = io.BytesIO(response.content)
+
+        try:
+            image_as_tensor = ImageDownloader.get_image_as_normalized_tensor(image_bytes)
+        except Exception as e:
+            # TODO: Handle the case when the image is grayscale
+            return None
+
+        return flickr_data_row.id, flickr_data_row.photo_video_download_url, image_as_tensor
+
+    @staticmethod
+    def download_images(links, threads_count):
+        print("Downloading %d possible images on %d threads..." % (len(links), threads_count))
+
+        tensor_images_it = ThreadPool(threads_count).imap_unordered(ImageDownloader.download_and_preprocess_image, links)
         tensor_images = []
-        for i in range(0, len(links)):
-            row = links[i]
-            response = requests.get(row.photo_video_download_url)
-            if response.status_code != 200:
+
+        for tensor_image in tensor_images_it:
+            if tensor_image is None:
                 continue
-
-            image_bytes = io.BytesIO(response.content)
-
-            try:
-                image_as_tensor = ImageDownloader.get_image_as_normalized_tensor(image_bytes)
-            except Exception as e:
-                # TODO: Handle the case when the image is grayscale
-                continue
-
-            entry = (row.id, row.photo_video_download_url, image_as_tensor)
-            tensor_images.append(entry)
+            tensor_images.append(tensor_image)
 
         print("Succefuly Downloaded %d images" % len(tensor_images))
         return tensor_images

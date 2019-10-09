@@ -1,17 +1,31 @@
 from pyspark.sql import SparkSession
 from pyspark.sql import Row
 
+import os
+
 spark = SparkSession.builder.master("local").appName("Word Count").getOrCreate()
 
 
 class DataHandler:
 
     @staticmethod
-    def get_parquet_data(parquet_file_location):
-        print("Reading the input parquet file at %s" % parquet_file_location)
-        data_frame = spark.read.parquet(parquet_file_location)
-        links_dataframe = data_frame.select("id", "photo_video_download_url")
-        return links_dataframe.collect()
+    def get_unprocessed_links(input_parqut, output_parquet):
+        print("Reading the input parquet file at %s" % input_parqut)
+
+        links_dataframe = spark.read.parquet(input_parqut).select("id", "photo_video_download_url")
+
+        if not os.path.exists(output_parquet):
+            print("No output parquet exists, processing the entire dataset!")
+            return links_dataframe.collect()
+
+        print("Found output parquet, removing the already processed links")
+        classified_ids = spark.read.parquet(output_parquet)
+
+        unprocessed_links = links_dataframe\
+            .join(classified_ids, links_dataframe.id == classified_ids.image_id, how='left_anti')\
+            .select("id", "photo_video_download_url")
+
+        return unprocessed_links.collect()
 
     @staticmethod
     def convert_classification_result_to_dataframe(classification_result):
@@ -28,7 +42,7 @@ class DataHandler:
     @staticmethod
     def write_classification_result(results_df, parquet_destination):
         print("Writing the classification result to parquet file: %s" % parquet_destination)
-        results_df.write.mode('overwrite').parquet(parquet_destination)
+        results_df.write.mode('append').parquet(parquet_destination)
 
 
 if __name__ == '__main__':
