@@ -26,7 +26,7 @@ class ImageDownloader:
         response = requests.get(link)
 
         if response.status_code != 200:
-            return None
+            return None, None, None
 
         image_bytes = io.BytesIO(response.content)
 
@@ -34,7 +34,7 @@ class ImageDownloader:
             image_as_tensor = ImageDownloader.get_image_as_normalized_tensor(image_bytes)
         except Exception as e:
             # TODO: Handle the case when the image is grayscale
-            return None
+            return None, None, None
 
         return flickr_data_row.id, flickr_data_row.photo_video_download_url, image_as_tensor
 
