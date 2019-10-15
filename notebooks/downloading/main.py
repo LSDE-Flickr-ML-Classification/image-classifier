@@ -1,11 +1,14 @@
 # %run /group07/downloader/image_downloader
 from image_downloader import ImageDownloader
-
+from pyspark.sql.types import StructField, BinaryType, StructType
+import pickle
 
 # COMMAND ----------
 
 
 from pyspark.sql import SparkSession
+from pyspark.sql.functions import udf
+
 import torch
 import time
 import io
@@ -15,7 +18,7 @@ import io
 
 
 INPUT_PARQUET_LOCATION = "/home/corneliu/flickr_sampled.parquet/"
-TENSORS_OUTPUT_LOCATION = "/home/corneliu/tensors"
+IMAGES_OUTPUT_LOCATION = "/home/corneliu/downloaded_images"
 
 
 # COMMAND ----------
@@ -29,30 +32,42 @@ count_accumulator = sc.accumulator(0)
 # COMMAND ----------
 
 
-def process_data_row(row, counter):
-    image_download_link = row.photo_video_download_url
-    image_id = row.id
-    image_as_tensor = ImageDownloader.get_normalized_photo(image_download_link)
+def download_image(photo_video_download_url, count):
+    downloaded_photo = ImageDownloader.get_image_from_link(photo_video_download_url)
 
-    if image_as_tensor is None:
-        return
+    if downloaded_photo is None:
+        return None
 
-    counter.add(1)
+    count.add(1)
 
-    tensor_save_location = TENSORS_OUTPUT_LOCATION + "/" + str(image_id)
-    torch.save(image_as_tensor, tensor_save_location)
+    buffer = io.BytesIO()
+    downloaded_photo.save(buffer, format='PNG')
 
-
-
+    return buffer.getvalue()
 
 # COMMAND ----------
 
+
+download_image_udf = spark.udf.register("download_image", lambda x: download_image(x, count_accumulator), BinaryType())
+
 time_started = time.time()
+
 print("Default parallelism: %d" % sc.defaultParallelism)
-flickr_image_df = spark.read.parquet(INPUT_PARQUET_LOCATION).select("id", "photo_video_download_url")
+
+flickr_image_df = spark.read.parquet(INPUT_PARQUET_LOCATION)\
+    .select("id", "photo_video_download_url")\
+    .withColumn('image_bytes', download_image_udf('photo_video_download_url'))\
+    .drop('photo_video_download_url')
+
 print("Number of partitions: %d" % flickr_image_df.rdd.getNumPartitions())
-flickr_image_df.foreach(lambda row: process_data_row(row, count_accumulator))
+
+# flickr_image_df.show(1000)
+
+flickr_image_df.write.mode('overwrite').parquet("images.parquet")
+# flickr_image_df.foreach(lambda row: process_data_row(row, count_accumulator))
+
 time_taken = time.time() - time_started
+
 print("Total number of images: %d. Time taken: %.2f s" % (count_accumulator.value, time_taken))
 
 
