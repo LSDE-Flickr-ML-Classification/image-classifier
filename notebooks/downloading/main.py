@@ -1,15 +1,13 @@
 # %run /group07/downloader/image_downloader
 from image_downloader import ImageDownloader
-from pyspark.sql.types import StructField, BinaryType, StructType
-import pickle
+from pyspark.sql.types import BinaryType
+
 
 # COMMAND ----------
 
 
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import udf
 
-import torch
 import time
 import io
 
@@ -18,7 +16,7 @@ import io
 
 
 INPUT_PARQUET_LOCATION = "/home/corneliu/flickr_sampled.parquet/"
-IMAGES_OUTPUT_LOCATION = "/home/corneliu/downloaded_images"
+OUTPUT_PARQUET_LOCATION = "/home/corneliu/downloaded_images.parquet"
 
 
 # COMMAND ----------
@@ -26,7 +24,6 @@ IMAGES_OUTPUT_LOCATION = "/home/corneliu/downloaded_images"
 
 spark = SparkSession.builder.master("local[*]").appName("Images downloader").getOrCreate()
 sc = spark.sparkContext
-count_accumulator = sc.accumulator(0)
 
 
 # COMMAND ----------
@@ -45,30 +42,48 @@ def download_image(photo_video_download_url, count):
 
     return buffer.getvalue()
 
+
 # COMMAND ----------
 
 
-download_image_udf = spark.udf.register("download_image", lambda x: download_image(x, count_accumulator), BinaryType())
+def get_downloaded_images_df(input_parquet, sum_accumulator):
+    download_image_udf = spark.udf.register("download_image", lambda x: download_image(x, sum_accumulator), BinaryType())
 
-time_started = time.time()
+    downloaded_images_df = spark.read.parquet(input_parquet) \
+        .select("id", "photo_video_download_url") \
+        .withColumn('image_bytes', download_image_udf('photo_video_download_url')) \
+        .drop('photo_video_download_url')
 
-print("Default parallelism: %d" % sc.defaultParallelism)
+    return downloaded_images_df
 
-flickr_image_df = spark.read.parquet(INPUT_PARQUET_LOCATION)\
-    .select("id", "photo_video_download_url")\
-    .withColumn('image_bytes', download_image_udf('photo_video_download_url'))\
-    .drop('photo_video_download_url')
 
-print("Number of partitions: %d" % flickr_image_df.rdd.getNumPartitions())
+# COMMAND ----------
 
-# flickr_image_df.show(1000)
 
-flickr_image_df.write.mode('overwrite').parquet("images.parquet")
-# flickr_image_df.foreach(lambda row: process_data_row(row, count_accumulator))
+def download_and_store_all_images(input_parquet, output_parquet):
+    time_started = time.time()
 
-time_taken = time.time() - time_started
+    print("Default parallelism: %d" % sc.defaultParallelism)
 
-print("Total number of images: %d. Time taken: %.2f s" % (count_accumulator.value, time_taken))
+    count_accumulator = sc.accumulator(0)
+    downloaded_images_df = get_downloaded_images_df(input_parquet, count_accumulator)
+
+    print("Number of partitions: %d" % downloaded_images_df.rdd.getNumPartitions())
+    downloaded_images_df.write.mode('overwrite').parquet(output_parquet)
+
+    time_taken = time.time() - time_started
+    total_images_downloaded = count_accumulator.value
+    images_per_second = total_images_downloaded / time_taken
+
+    print("Total number of images: %d. Time taken: %.2f s Images/s: %.2f" %
+          (total_images_downloaded, time_taken, images_per_second))
+
+
+# COMMAND ----------
+
+
+download_and_store_all_images(INPUT_PARQUET_LOCATION, OUTPUT_PARQUET_LOCATION)
+
 
 
 
