@@ -10,12 +10,19 @@ import os
 import json
 import io
 
+
+# COMMAND ----------
+
+
 MEAN = [0.485, 0.456, 0.406]
 STANDARD_DEVIATION = [0.229, 0.224, 0.225]
 IMAGE_TRANSFORM_FUNCTION = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=MEAN, std=STANDARD_DEVIATION)
 ])
+
+
+# COMMAND ----------
 
 
 class ImageDataset(Dataset):
@@ -45,6 +52,9 @@ class ImageDataset(Dataset):
                 continue
 
         return image_tensors
+
+
+# COMMAND ----------
 
 
 class BatchClassifier:
@@ -131,11 +141,3 @@ class BatchClassifier:
         print("Finished classifying the images. Duration: %.2f" % duration_classification)
 
         return results
-
-
-
-
-
-
-
-

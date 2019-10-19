@@ -1,10 +1,16 @@
 from pyspark.sql import Row
 from pyspark.sql import SparkSession
-
 import time
+
+
+# COMMAND ----------
+
 
 spark = SparkSession.builder.master("local[*]").appName("Images downloader").getOrCreate()
 sc = spark.sparkContext
+
+
+# COMMAND ----------
 
 
 class OutputWriter:
