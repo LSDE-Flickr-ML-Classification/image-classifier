@@ -2,7 +2,7 @@ from pyspark.sql import SparkSession
 
 spark = SparkSession.builder.master("local").appName("Word Count").getOrCreate()
 
-PARQUET_FILE = "/home/corneliu/classification_result.parquet"
+PARQUET_FILE = "/home/corneliu/classified_images.parquet"
 
 data_frame = spark.read.parquet(PARQUET_FILE)
 data_frame.show(300)

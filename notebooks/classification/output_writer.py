@@ -1,14 +1,6 @@
-from pyspark.sql import Row
-from pyspark.sql import SparkSession
+import pyarrow as pa
+import pandas as pd
 import time
-
-
-# COMMAND ----------
-
-
-spark = SparkSession.builder.master("local[*]").appName("Images downloader").getOrCreate()
-sc = spark.sparkContext
-
 
 # COMMAND ----------
 
@@ -20,7 +12,10 @@ class OutputWriter:
     def write_to_parquet(self, classification_result):
         start_time_writing = time.time()
         classification_df = OutputWriter.convert_classification_to_dataframe(classification_result)
-        classification_df.write.mode('append').parquet(self.output_parquet)
+        table = pa.Table.from_pandas(classification_df)
+
+
+
         duration_writing = time.time() - start_time_writing
 
         print("Wrote the classification result to the parquet file: %s. Duration: %.2f" %
@@ -28,12 +23,14 @@ class OutputWriter:
 
     @staticmethod
     def convert_classification_to_dataframe(classification_result):
-        print("Converting the classification result to dataframe")
+        print("Converting the classification result to pandas dataframe")
 
-        rows_list = []
+        df = pd.DataFrame(columns=['image_id', 'label', 'confidence'])
 
         for image_id, matched_classes in classification_result:
             for label, confidence in matched_classes.items():
-                rows_list.append(Row(image_id=image_id, label=label, confidence=confidence))
+                df.append({'image_id': image_id, 'label': label, 'confidence': confidence})
 
-        return spark.createDataFrame(rows_list)
+        print("Finished converting to pandas dataframe")
+
+        return df

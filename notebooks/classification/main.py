@@ -1,22 +1,15 @@
-from pyspark.sql.types import BinaryType, StructType, StringType, StructField
 import time
-
-
-# COMMAND ----------
-
 
 from image_classifier import BatchClassifier
 from output_writer import OutputWriter
-from pyspark.sql import SparkSession
-
-spark = SparkSession.builder.master("local[*]").appName("Images downloader").getOrCreate()
-sc = spark.sparkContext
+from input_reader import InputReader
 
 
 # COMMAND ----------
 
 
-INPUT_IMAGES_PARQUET = "/home/corneliu/downloaded_images/downloaded_images-*.parquet"
+INPUT_PARQUETS = ["/home/corneliu/downloaded_images-sample.parquet"]
+
 OUTPUT_CLASSIFIED_PARQUET = "/home/corneliu/classified_images.parquet"
 IMAGENET_CLASSES_LOCATION = "/media/corneliu/UbuntuFiles/projects/flickr-image-classification/scripts/classifier/imagenet_classes.json"
 CHECKPOINT_LOCATION = "/tmp/classification-checkpoint"
@@ -25,16 +18,35 @@ BATCH_SIZE = 200
 MAX_LABELS = 5
 NUM_WORKERS = 1
 
+total_images_count = 0
 
 # COMMAND ----------
 
 
-def process_batch(df, batch_classifier, output_writer):
+batch_classifier = BatchClassifier(
+    can_use_cuda=CAN_USE_CUDA,
+    classes_file_location=IMAGENET_CLASSES_LOCATION,
+    batch_size=BATCH_SIZE,
+    max_labels=MAX_LABELS,
+    num_workers=NUM_WORKERS
+)
+
+
+# COMMAND ----------
+
+
+output_writer = OutputWriter(OUTPUT_CLASSIFIED_PARQUET)
+
+
+# COMMAND ----------
+
+
+def process_dataframe(dataframe):
+    global total_images_count
     start_time_batch_processing = time.time()
-    batch_size = df.count()
+    batch_size = dataframe.size
     print("Classifying a Batch of size: %d" % batch_size)
-    images_batch = df.collect()
-    matched_labels = batch_classifier.classify_images(images_batch)
+    matched_labels = batch_classifier.classify_images(dataframe)
     size_matched_labels = len(matched_labels)
     print("Classified a batch of %d valid elements from %d possible elements" % (size_matched_labels, batch_size))
     output_writer.write_to_parquet(matched_labels)
@@ -42,40 +54,20 @@ def process_batch(df, batch_classifier, output_writer):
     speed = size_matched_labels / duration_batch_processing
     print("Duration of processing a batch of %d images: %.2f s. Speed: %2.f img/s" %
           (size_matched_labels, duration_batch_processing, speed))
+    total_images_count = total_images_count + size_matched_labels
+    print("Total images count: %d" % total_images_count)
 
 
 # COMMAND ----------
 
 
 def read_downloaded_images():
-    input_parquet_schema = StructType([
-        StructField("id", StringType()),
-        StructField("image_bytes", BinaryType())
-    ])
-
-    batch_classifier = BatchClassifier(
-        can_use_cuda=True,
-        classes_file_location=IMAGENET_CLASSES_LOCATION,
-        batch_size=200,
-        max_labels=5,
-        num_workers=1
-    )
-
-    output_writer = OutputWriter(OUTPUT_CLASSIFIED_PARQUET)
-
-    parquet_read_stream = spark\
-        .readStream \
-        .schema(input_parquet_schema)\
-        .parquet(INPUT_IMAGES_PARQUET)\
-
-    parquet_read_stream.writeStream \
-        .option("checkpointLocation", CHECKPOINT_LOCATION)\
-        .foreachBatch(lambda df, epoch_id: process_batch(df, batch_classifier, output_writer)) \
-        .start()\
-        .processAllAvailable()
+    input_reader = InputReader(INPUT_PARQUETS)
+    input_reader.read_parquet_files_as_row_groups(callback=process_dataframe)
 
 
 # COMMAND ----------
 
 
-read_downloaded_images()
+if __name__ == '__main__':
+    read_downloaded_images()

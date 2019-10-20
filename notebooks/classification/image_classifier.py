@@ -1,57 +1,12 @@
 from torch.utils.data import Dataset
 from torchvision import models
 from itertools import islice
-from PIL import Image
-from torchvision import transforms
+from image_dataset import ImageDataset
 
 import time
 import torch
 import os
 import json
-import io
-
-
-# COMMAND ----------
-
-
-MEAN = [0.485, 0.456, 0.406]
-STANDARD_DEVIATION = [0.229, 0.224, 0.225]
-IMAGE_TRANSFORM_FUNCTION = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize(mean=MEAN, std=STANDARD_DEVIATION)
-])
-
-
-# COMMAND ----------
-
-
-class ImageDataset(Dataset):
-    def __init__(self, batch):
-        self.batch = ImageDataset.preprocess_dataset(batch)
-
-    def __len__(self):
-        return len(self.batch)
-
-    def __getitem__(self, index):
-        return self.batch[index][0], self.batch[index][1]
-
-    @staticmethod
-    def preprocess_dataset(batch_dataset):
-        image_tensors = []
-        for row in batch_dataset:
-            image_id = row.id
-            if row.image_bytes is None:
-                continue
-            image_bytes = bytearray(row.image_bytes)
-            image = Image.open(io.BytesIO(image_bytes))
-            try:
-                image_tensor = IMAGE_TRANSFORM_FUNCTION(image)
-                image_tensors.append((image_id, image_tensor))
-            except Exception as e:
-                # TODO: Verify for greyscale images
-                continue
-
-        return image_tensors
 
 
 # COMMAND ----------
