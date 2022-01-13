@@ -20,7 +20,7 @@ mkl-fft==1.0.14
 mkl-random==1.0.2
 mkl-service==2.3.0
 numpy==1.16.5
-Pillow==6.1.0
+Pillow==9.0.0
 protobuf==3.9.2
 pycosat==0.6.3
 pycparser==2.19
