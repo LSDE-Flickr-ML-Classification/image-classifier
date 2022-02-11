@@ -21,7 +21,7 @@ mkl-random==1.0.2
 mkl-service==2.3.0
 numpy==1.16.5
 Pillow==6.1.0
-protobuf==3.9.2
+protobuf==3.15.0
 pycosat==0.6.3
 pycparser==2.19
 pyOpenSSL==19.0.0
